@@ -1,0 +1,38 @@
+{{ define "navbar" }}
+<nav class="bg-white shadow">
+  <div class="container mx-auto px-4">
+    <div class="flex justify-between items-center h-16">
+      
+      <a href="/" class="text-xl font-semibold">
+        TriadChat
+      </a>
+      {{if .CurrentUser}}
+      <div class="hidden md:flex space-x-6">
+        <a href="/conversations" class="hover:text-blue-600">Chats</a>
+        <a href="/profile" class="hover:text-blue-600">Profile</a>
+        
+        <form action="/logout" method="POST">
+            <button class="inline-flex items-center justify-center 
+              px-4 py-2.5 rounded-md text-sm font-semibold 
+              border border-red-600 text-red-600
+              hover:bg-red-600 hover:text-white transition">
+              Sign Out
+            </button>
+          </form>
+        {{else}}
+        <a href="/login" class="hover:text-blue-600">Login</a>
+        <a href="/register" class="hover:text-blue-600">Register</a>
+        {{end}}
+
+      </div>
+
+      <div class="md:hidden">
+        <button id="mobile-menu-btn" class="focus:outline-none">
+          ☰
+        </button>
+      </div>
+
+    </div>
+  </div>
+</nav>
+{{ end }}

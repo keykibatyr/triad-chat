@@ -1,0 +1,77 @@
+{{ define "title" }}Login{{ end }}
+
+{{ define "content" }}
+<div class="max-w-md mx-auto bg-white p-6 rounded shadow">
+  <h1 class="text-2xl font-bold mb-6">Login</h1>
+
+  <form method="POST" action="/login" class="space-y-4">
+
+    {{ if .Error }}
+    <div class="px-4 py-3 bg-red-100 text-red-700 rounded-lg text-sm">
+    {{ .Error }}
+      </div>
+    {{ end }}
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Email</label>
+      <input 
+        type="email" 
+        name="email" 
+        required 
+        class="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-500"
+      >
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Password</label>
+      <input 
+        type="password" 
+        name="password" 
+        required 
+        class="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-500"
+      >
+    </div>
+
+    <button 
+      type="submit"
+      class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+    >
+      Sign In
+    </button>
+  </form>
+
+  <p class="mt-4 text-sm text-gray-600">
+    Don't have an account?
+    <a href="/register" class="text-blue-600 hover:underline">Register</a>
+  </p>
+</div>
+
+
+<script>
+  let accessToken = null 
+
+  document.getElementById("loginForm").addEventListener("submit", async(e) => {
+    e.preventDefault()
+
+    const form = e.target
+
+    const res = await fetch("http://localhost:8080/api/login", {
+      method: "POST", 
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        email: form.email.value,
+        password: form.password.value,
+      })
+    })
+
+    const data = await res.json()
+    accessToken = data.access_token
+
+    window.location.href = "/chat"
+  })
+
+</script>
+
+{{ end }}
+
+{{ template "base" . }}
