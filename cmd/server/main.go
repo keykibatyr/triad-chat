@@ -9,6 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/keykibatyr/triad-chat/internal/ai/client"
+	aiService "github.com/keykibatyr/triad-chat/internal/ai/service"
 	"github.com/keykibatyr/triad-chat/internal/auth"
 	chatRepository "github.com/keykibatyr/triad-chat/internal/chat/repository"
 	chatService "github.com/keykibatyr/triad-chat/internal/chat/service"
@@ -77,13 +79,25 @@ func main() {
 
 	messageRepo := chatRepository.NewMessageRepo(db)
 	convoRepo := chatRepository.NewConvoRepo(db)
+	convoSummaryRepo := chatRepository.NewConvoSummaryRepo(db)
+	
+	client, err := client.NewClient(ctx, cfg.Gemini)
+	if err != nil {
+		log.Fatal("Error opening the db")
+	}
 
-	messageService := chatService.NewMessageService(convoRepo, messageRepo)
+	modelName := "gemini-2.0-flash"
+
+	aiService := aiService.NewAiService(client, modelName)
+	messageService := chatService.NewMessageService(convoRepo, messageRepo, convoSummaryRepo, aiService)
+	convoService := chatService.NewConvoService(convoRepo)	
+	convoSummaryService := chatService.NewConvoSummaryService(messageRepo, convoSummaryRepo, aiService)
+
 
 	persistWorker := worker.NewPersistWorker(messageService)
-	hub := ws.NewHub(persistWorker)
+	hub := ws.NewHub(persistWorker, convoService, messageService, convoSummaryService)
 	hub.Worker.SaveToDB(ctx)
-	hubHandler := ws.NewHubHandler(hub, service.NewUserService(userRepo))
+	hubHandler := ws.NewHubHandler(hub, service.NewUserService(userRepo), messageService, ctx)
 
 	hubHandler.Templates.Chat = chat
 
@@ -104,7 +118,9 @@ func main() {
 		protected.Use(authMiddleware.AuthAccess())
 		protected.GET("/ws", hubHandler.ServeWs)
 		protected.GET("/chat", hubHandler.ChatPage)
-		protected.POST("/ws/createRoom", hubHandler.CreateRoom)
+		protected.POST("/chat/createRoom", hubHandler.CreateRoom)
+		protected.POST("/chat/search", hubHandler.ShowBySearch)
+		protected.GET("/chat/messages", hubHandler.ChatLoad)
 	}
 
 	router.Run()

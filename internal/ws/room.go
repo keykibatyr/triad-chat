@@ -21,6 +21,12 @@ type Room struct {
 	mu         sync.RWMutex
 }
 
+type RoomSummary struct {
+	ConvoID string `json:"convo_id"`
+	SummaryText string `json:"summary_text"`
+	LastMessageID string `json:"last_message_id"`
+}
+
 func NewRoom(id, name string) *Room {
 	return &Room{
 		ID:         id,
@@ -40,7 +46,7 @@ func (r *Room) run() {
 			log.Printf("Client connected: %s", client.Username)
 		case client := <-r.Unregister:
 			delete(r.Clients, client)
-			log.Printf("Client disconnected: %s", client.Username)
+			log.Println(*client, "CLIENT DISSCONECTED: %s", client.Username)
 		case message := <-r.Broadcast:
 			r.broadcastToRoom(message)
 		}

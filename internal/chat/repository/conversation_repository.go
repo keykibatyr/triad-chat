@@ -12,7 +12,8 @@ import (
 
 type ConvoRepository interface {
 	CreateConvo(ctx context.Context, convo *chatmodels.Convo) (*chatmodels.Convo, error)
-	GetRoomByID(ctx context.Context, iв int64) (*chatmodels.Convo, error)
+	GetConvoByID(ctx context.Context, id int64) (*chatmodels.Convo, error)
+	GetConvoListByName(ctx context.Context, name string) ([]chatmodels.Convo, error)
 	AddParticipant(ctx context.Context, convoID, userID int64) error
 	RemoveParticipant(ctx context.Context, convoID, userID int64) error
 	IsParticipant(ctx context.Context, convoID, userID int64) (bool, error)
@@ -33,19 +34,19 @@ type PostgresConvoRepository struct {
 func (r *PostgresConvoRepository) CreateConvo(ctx context.Context, convo *chatmodels.Convo) (*chatmodels.Convo, error) {
 	query := `INSERT INTO conversations (conversation_type, name) VALUES ($1, $2) RETURNING id`
 
-	err := r.DB.QueryRowContext(ctx, query, convo.Name, convo.Type).Scan(&convo.ID)
+	err := r.DB.QueryRowContext(ctx, query, convo.Type, convo.Name).Scan(&convo.ID)
 	if err != nil {
 		return nil, fmt.Errorf("fail at inserting conversation: %w", err)
 	}
 
 	return convo, nil
 }
-func (r *PostgresConvoRepository) GetRoomByID(ctx context.Context, id int64) (*chatmodels.Convo, error) {
+func (r *PostgresConvoRepository) GetConvoByID(ctx context.Context, id int64) (*chatmodels.Convo, error) {
 	var convo chatmodels.Convo
 
 	convo.ID = id
 
-	query := `SELECT (conversation_type, name) FROM conversations WHERE id = $1`
+	query := `SELECT conversation_type, name FROM conversations WHERE id = $1`
 
 	err := r.DB.QueryRowContext(ctx, query, id).Scan(&convo.Type, &convo.Name)
 	if err != nil {
@@ -122,7 +123,7 @@ func (r *PostgresConvoRepository) GetConversationParticipants(ctx context.Contex
 func (r *PostgresConvoRepository) GetUserConversationIDs(ctx context.Context, userID int64) ([]int64, error) {
 	var convoIDs []int64
 
-	query := `SELECT conversation_id FROM conversation_participants WHERE user_id = $1`
+	query := `SELECT id FROM conversation_participants WHERE user_id = $1`
 
 	rows, err := r.DB.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -141,4 +142,29 @@ func (r *PostgresConvoRepository) GetUserConversationIDs(ctx context.Context, us
 	}
 
 	return  convoIDs, nil
+}
+
+
+func (r *PostgresConvoRepository) GetConvoListByName(ctx context.Context, name string) ([]chatmodels.Convo, error) {
+	var convoList []chatmodels.Convo
+
+	query := `SELECT id, name, conversation_type FROM conversations WHERE name = $1`
+
+	rows, err := r.DB.QueryContext(ctx, query, name)
+	if err != nil {
+		return nil, fmt.Errorf("could not get the conversations ids by name: %w", err)
+	}
+
+	for rows.Next(){
+		var convo chatmodels.Convo
+
+		err := rows.Scan(&convo.ID, &convo.Name, &convo.Type)
+		if err != nil {
+			return nil, fmt.Errorf("could not get the conversations of the user: %w", err)
+		}
+
+		convoList = append(convoList, convo)
+	}
+
+	return  convoList, nil
 }

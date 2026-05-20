@@ -124,6 +124,8 @@ func (a *AuthHandler) LoginProcess(c *gin.Context) {
 		true,
 	)
 
+	c.Redirect(http.StatusFound, "/chat")
+
 }
 
 func (a *AuthHandler) LogoutProcess(c *gin.Context) {

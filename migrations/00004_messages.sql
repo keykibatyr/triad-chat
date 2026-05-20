@@ -5,7 +5,7 @@ CREATE TABLE messages(
     sender_id INT REFERENCES users (id) ON DELETE CASCADE,
     content TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    edited_at TIMESTAMP NOT NULL DEFAULT now()
+    edited_at TIMESTAMP NOT NULL DEFAULT now()  
 );
 
 -- +goose StatementBegin

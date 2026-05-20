@@ -20,10 +20,12 @@ type JWTConfig struct {
 	Issuer             string
 }
 
+
 type Config struct {
 	Database models.PostgresConfig
 	Server   ServerConfig
 	JWT 	JWTConfig
+	Gemini string
 }
 
 func Load() *Config {
@@ -48,6 +50,8 @@ func Load() *Config {
 			RefreshTokenTTL: 7 * 24 * time.Hour,
 			Issuer: "triad-chat",
 		},
+
+		Gemini: getEnv("GEMINI_API_KEY", "something"),
 	}
 }
 

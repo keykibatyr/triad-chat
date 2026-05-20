@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/keykibatyr/triad-chat/internal/chat/models"
+	// "github.com/keykibatyr/triad-chat/internal/utils"
 )
 
 const (
@@ -42,16 +44,19 @@ type Message struct {
 	Type     string `json:"type"`
 	Content  string `json:"content"`
 	Username string `json:"username"`
+	SenderType string `json:"sender_type"`
 	RoomID   string `json:"room_id"`
 	UserID   string `json:"user_id"`
 }
 
-func (c *Client) readPump() {
+func (c *Client) readPump(ctx context.Context) {
 	defer func() {
 		for _, room := range c.Rooms {
 			room.Unregister <- c
 		}
 		c.Conn.Close()
+		c.Hub.DeleteClient(c)
+		fmt.Println("READPUMP IS CLOSED")
 	}()
 
 	c.Conn.SetReadLimit(maxMessageSize)
@@ -70,6 +75,8 @@ func (c *Client) readPump() {
 			break
 		}
 
+		log.Printf("raw message: %s", data)
+
 		var msg Message
 		if err := json.Unmarshal(data, &msg); err != nil {
 			log.Printf("error parsing message: %v", err)
@@ -78,21 +85,29 @@ func (c *Client) readPump() {
 
 		msg.Username = c.Username
 		msg.UserID = c.ID
-
-		messageDB := &models.Message{
-			Type:    msg.Type,
-			Content: msg.Content,
-			ConvoID: msg.RoomID,
-			UserID:  msg.UserID,
-		}
+		msg.SenderType = "user"
 
 		switch msg.Type {
 		case "join_room": //fix
-			room := c.Hub.GetRoom(msg.RoomID)
+			room := c.Hub.GetOrCreateRoom(ctx, msg.RoomID)
 			if room == nil {
 				continue
 			}
-			c.Hub.JoinRoom(c, room)
+			sysMessage, err := c.Hub.JoinRoom(ctx, c, room)
+			if err != nil {
+				//add error or some other shit
+				break
+			}
+
+			messageDB := &models.Message{
+				Type:    sysMessage.Type,
+				SenderType: sysMessage.SenderType,
+				Content: sysMessage.Content,
+				ConvoID: sysMessage.RoomID,
+				UserID:  msg.UserID,
+			}
+
+			log.Printf("joingning the room: %s", data)
 			c.Hub.Worker.Enqueue(messageDB)
 			log.Println("message sent to db 1")
 
@@ -101,7 +116,20 @@ func (c *Client) readPump() {
 			if !ok {
 				continue
 			}
-			c.Hub.LeaveRoom(c, room)
+			sysMessage, err := c.Hub.LeaveRoom(c, room)
+			if err != nil {
+				//add error or some other shit
+				break
+			}
+
+			messageDB := &models.Message{
+				Type:    sysMessage.Type,
+				SenderType: sysMessage.SenderType,
+				Content: sysMessage.Content,
+				ConvoID: sysMessage.RoomID,
+				UserID:  msg.UserID,
+			}
+
 			c.Hub.Worker.Enqueue(messageDB)
 			log.Println("message sent to db 2")
 
@@ -111,9 +139,23 @@ func (c *Client) readPump() {
 				continue
 			}
 
+			// if utils.ContainsAi(msg.Content) {
+			// 	c.Hub
+			// }
+
+
+			messageDB := &models.Message{
+				Type:    msg.Type,
+				SenderType: msg.SenderType,
+				Content: msg.Content,
+				ConvoID: msg.RoomID,
+				UserID:  msg.UserID,
+			}
+
 			room.Broadcast <- &msg
 			c.Hub.Worker.Enqueue(messageDB)
 			log.Println("message sent to db 3")
+			
 		}
 	}
 }
@@ -121,9 +163,9 @@ func (c *Client) readPump() {
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		c.Hub.DeleteClient(c)
 		ticker.Stop()
-		c.Conn.Close()
+		close(c.Send)
+		fmt.Println("WRITEPUMP IS CLOSED")
 	}()
 
 	for {

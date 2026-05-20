@@ -20,7 +20,7 @@ type AuthMiddleware struct {
 func (m *AuthMiddleware) AuthAccess() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString, err := c.Cookie("access_token")
-		log.Print(tokenString)
+		// log.Print(tokenString)
 		if err == nil {
 			tokenClaims, err := m.JWT.ValidateAccessToken(tokenString)
 			if err == nil {

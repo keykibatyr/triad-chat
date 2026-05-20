@@ -34,7 +34,10 @@ func (w *PersistWorker) SaveToDB(ctx context.Context) {
 						log.Printf("channel Jobs closed or there is no Job: %v and %v", ok, job)
 						return 
 					}
-					w.MessageService.SendMessage(ctx, job)
+					err := w.MessageService.SendMessage(ctx, job)
+					if err != nil {
+						log.Println("fail creating MEssage in DB")
+					}
 				case <- ctx.Done():
 					log.Printf("context is done")
 					return 
@@ -46,4 +49,5 @@ func (w *PersistWorker) SaveToDB(ctx context.Context) {
 
 func (w *PersistWorker) Enqueue(msg *models.Message){
 	w.Jobs <- msg
+	log.Println("ENQUEUE SUCCESS")
 }
