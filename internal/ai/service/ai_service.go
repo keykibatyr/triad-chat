@@ -36,6 +36,8 @@ func (s *AiService) Ask(ctx context.Context, aiRequest models.AiRequest) (string
 			}},
 		}
 
+	fmt.Println(aiRequest.SystemText)
+
 	contents := make([]*genai.Content, 0, len(aiRequest.Messages))
 
 	for _, msg := range aiRequest.Messages {
@@ -68,6 +70,7 @@ func (s *AiService) Ask(ctx context.Context, aiRequest models.AiRequest) (string
 	fmt.Println("bug ai service")
 
 	if err != nil {
+		fmt.Printf("GENERATE CONTENT ERR: %w \n" , err)
 		return "", fmt.Errorf("could not send request to AI: %w", err)
 	}
 

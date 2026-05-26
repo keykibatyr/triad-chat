@@ -256,9 +256,9 @@ func (r *PostgresMessageRepository) CountUnsummerized(ctx context.Context, convo
 	query := `SELECT COUNT(*)
 		FROM messages
 		WHERE conversation_id = $1
-		AND id > last_summarized_message_id`
+		AND id > $2`
 
-	err := r.DB.QueryRowContext(ctx, query, convoID,lastSummerizedMsg).Scan(&msgCount)
+	err := r.DB.QueryRowContext(ctx, query, convoID,lastSummerizedMsg).Scan(&msgCount, &lastSummerizedMsg)
 	if err != nil {
 		return nil, fmt.Errorf("fail retrieving msgCount: %w", err)
 	}
