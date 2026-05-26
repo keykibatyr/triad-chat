@@ -135,15 +135,29 @@ function connect() {
     };
 
     ws.onmessage = function(event) {
-        const msg = JSON.parse(event.data);
+        const payloads = String(event.data)
+            .split("\n")
+            .map(chunk => chunk.trim())
+            .filter(Boolean);
 
-        if (msg.type === "join_room" || msg.type === "leave_room") {
-            addSystemMessage(msg.content);
-            return;
-        }
+        payloads.forEach(payload => {
+            let msg;
 
-        addMessage(msg, false);
-        scrollBottom();
+            try {
+                msg = JSON.parse(payload);
+            } catch (err) {
+                console.log("could not parse websocket payload:", payload, err);
+                return;
+            }
+
+            if (msg.type === "join_room" || msg.type === "leave_room") {
+                addSystemMessage(msg.content);
+                return;
+            }
+
+            addMessage(msg, false);
+            scrollBottom();
+        });
     };
 }
 

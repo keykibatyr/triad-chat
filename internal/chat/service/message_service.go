@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 
 	// aimodels "github.com/keykibatyr/triad-chat/internal/ai/models"
@@ -21,7 +22,7 @@ type Paginate struct {
 }
 
 type MessageServiceInterface interface {
-	SendMessage(ctx context.Context, msg *models.Message) error
+	SendMessage(ctx context.Context, msg *models.Message) (*models.Message, error)
 	ListMessagesAtLoad(ctx context.Context, convoID int64, messageLimit int) (*Paginate, error)
 	ListMessagesAndCursor(ctx context.Context, convoID int64, messageLimit, cursor int) (*Paginate, error)
 	MessageToAi(ctx context.Context, msg *models.Message) (*models.Message, error)
@@ -38,41 +39,41 @@ func NewMessageService(
 	convoRepo repository.ConvoRepository,
 	messageRepo repository.MessageRepository,
 	convoSummaryRepo repository.ConvoSummaryRepository,
-	ai           service.AiServiceInterface,
+	ai service.AiServiceInterface,
 ) MessageServiceInterface {
 	return &MessageService{
 		ConvoRepo:        convoRepo,
 		MessageRepo:      messageRepo,
 		ConvoSummaryRepo: convoSummaryRepo,
-		AI: ai,
+		AI:               ai,
 	}
 }
 
-func (s *MessageService) SendMessage(ctx context.Context, msg *models.Message) error {
+func (s *MessageService) SendMessage(ctx context.Context, msg *models.Message) (*models.Message, error) {
 	userID, err := strconv.ParseInt(msg.UserID, 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid userID: %w", err)
+		return nil, fmt.Errorf("invalid userID: %w", err)
 	}
 	convoID, err := strconv.ParseInt(msg.ConvoID, 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid userID: %w", err)
+		return nil, fmt.Errorf("invalid userID: %w", err)
 	}
 
 	isParticipant, err := s.ConvoRepo.IsParticipant(ctx, convoID, userID)
 	if err != nil {
-		return fmt.Errorf("failed reading if participant: %w", err)
+		return nil, fmt.Errorf("failed reading if participant: %w", err)
 	}
 
 	if isParticipant {
-		_, err = s.MessageRepo.CreateMessage(ctx, msg)
+		msg, err = s.MessageRepo.CreateMessage(ctx, msg)
 		if err != nil {
-			return fmt.Errorf("failed sending message to DB: %w", err)
+			return nil, fmt.Errorf("failed sending message to DB: %w", err)
 		}
 
-		return nil
+		return msg, nil
 	}
 
-	return fmt.Errorf("user is not part of convo")
+	return nil, fmt.Errorf("user is not part of convo")
 }
 
 func (s *MessageService) ListMessagesAtLoad(ctx context.Context, convoID int64, messageLimit int) (*Paginate, error) {
@@ -139,19 +140,36 @@ func (s *MessageService) ListMessagesAndCursor(ctx context.Context, convoID int6
 func (s *MessageService) MessageToAi(ctx context.Context, msg *models.Message) (*models.Message, error) {
 	convoID, err := strconv.ParseInt(msg.ConvoID, 10, 64)
 	if err != nil {
+		fmt.Println("bug 1")
 		return nil, fmt.Errorf("could not convert the string into in64: %w", err)
 	}
 
+	convoIDstring := strconv.FormatInt(convoID, 10)
+
 	convoSummary, err := s.ConvoSummaryRepo.GetConvoSummaryByConvoID(ctx, convoID)
 	if err != nil {
+		fmt.Println("bug 2")
 		return nil, fmt.Errorf("could not get ConvoSummary by ConvoId: %w", err)
 	}
 
-	messages, err := s.MessageRepo.GetXMeesages(ctx, convoID, MessageLimit)
+	// if convoSummary == nil {
+	// 	convoSummary = &models.ConvoSummary{
+	// 	ConvoID:       convoIDstring,
+	// 	SummaryText:   "",
+	// 	LastMessageID: strconv.Itoa(int(msg.ID)),
+	// 	}
+
+	// 	convoSummary, err = s.ConvoSummaryRepo.CreateConvoSummary(ctx, convoSummary)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("could not create summary: %w", err)
+	// 	}
+	// }
+
+	messages, err := s.MessageRepo.GetXMessages(ctx, convoID, MessageLimit)
 	if err != nil {
+		fmt.Println("bug 3")
 		return nil, fmt.Errorf("could not get the last X messages: %w", err)
 	}
-
 
 	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 		messages[i], messages[j] = messages[j], messages[i]
@@ -167,32 +185,39 @@ func (s *MessageService) MessageToAi(ctx context.Context, msg *models.Message) (
 		aiMessages = append(aiMessages, aiMessage)
 	}
 
-	convoIDstring := strconv.FormatInt(convoID, 10)
-	
+	aiQuestion := aimodels.AiMessage{
+		Role: msg.SenderType,
+		Content: msg.Content,
+	} 
+
+	aiMessages = append(aiMessages, aiQuestion)
+	fmt.Println(aiMessages)
+
 	persona := "You are an AI assistant in the room " + convoIDstring + ", answer the questions. Here is the summary for the chat so far: "
 	specPrompt := "generate the answer based on the last message and using thesummary and rest of the messages as the context if needed"
 
 	aiRequest := aimodels.AiRequest{
-		Messages: aiMessages,
+		Messages:   aiMessages,
 		SystemText: persona + convoSummary.SummaryText + specPrompt,
 	}
 
-
 	aiText, err := s.AI.Ask(ctx, aiRequest)
 	if err != nil {
+		log.Println("PROBLEM IS HERE")
 		return nil, fmt.Errorf("could not generate AI text: %w", err)
 	}
 
 	message := &models.Message{
-		Type: "ai_message",
+		Type:       "ai_message",
 		SenderType: "ai",
-		Content: aiText,
-		ConvoID: msg.ConvoID,
-		UserID: msg.UserID,
+		Content:    aiText,
+		ConvoID:    msg.ConvoID,
+		UserID:     msg.UserID,
 	}
 
-	message, err = s.MessageRepo.CreateMessage(ctx, message)
+	message, err = s.SendMessage(ctx, message)
 	if err != nil {
+		fmt.Println("bug 4")
 		return nil, fmt.Errorf("could not store ai message in DB: %w", err)
 	}
 

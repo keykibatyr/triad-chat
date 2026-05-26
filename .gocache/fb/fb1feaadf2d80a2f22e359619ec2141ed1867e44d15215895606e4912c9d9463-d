@@ -1,0 +1,7 @@
+./attachment.go
+./conversation.go
+./conversationParticipant.go
+./messageStatus.go
+./postgres.go
+./refresh_token.go
+./user.go

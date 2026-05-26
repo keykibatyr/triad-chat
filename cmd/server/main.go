@@ -86,7 +86,7 @@ func main() {
 		log.Fatal("Error opening the db")
 	}
 
-	modelName := "gemini-2.0-flash"
+	modelName := "gemini-2.5-flash"
 
 	aiService := aiService.NewAiService(client, modelName)
 	messageService := chatService.NewMessageService(convoRepo, messageRepo, convoSummaryRepo, aiService)

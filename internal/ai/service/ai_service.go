@@ -28,9 +28,9 @@ type AiService struct {
 
 
 func (s *AiService) Ask(ctx context.Context, aiRequest models.AiRequest) (string, error) {
-
-	config := s.Config
-	config.SystemInstruction = &genai.Content{
+	config := &genai.GenerateContentConfig{}
+	s.Config = config
+	s.Config.SystemInstruction = &genai.Content{
 			Parts: []*genai.Part{{
 				Text: aiRequest.SystemText,
 			}},
@@ -45,14 +45,16 @@ func (s *AiService) Ask(ctx context.Context, aiRequest models.AiRequest) (string
 		content.Role = genai.RoleModel
 		content.Parts = []*genai.Part{{Text: msg.Content}}
 		contents = append(contents, &content)
-		default:
+		case "user":
 		content.Role = genai.RoleUser
 		content.Parts = []*genai.Part{{Text: msg.Content}}
 		contents = append(contents, &content)
 		}
 	}
 
-
+    fmt.Println("bug ai service contents")
+	fmt.Println(contents)
+	fmt.Println("bug ai service contents")
 
 	result, err := s.Client.Models.GenerateContent(
 		ctx,
@@ -60,6 +62,10 @@ func (s *AiService) Ask(ctx context.Context, aiRequest models.AiRequest) (string
 		contents,
 		config,
 	)
+
+	fmt.Println("bug ai service")
+	fmt.Println(result)
+	fmt.Println("bug ai service")
 
 	if err != nil {
 		return "", fmt.Errorf("could not send request to AI: %w", err)

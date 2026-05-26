@@ -47,10 +47,16 @@ func (h *Hub) CreateRoom(ctx context.Context, name, convoType string) *Room {
 	}
 
 	id := strconv.FormatInt(convo.ID, 10)
+	convosummary, err := h.ConvoSummaryService.InitialSummary(ctx, convo.ID)
+	if err != nil {
+		log.Println("unable to create an i")
+		return nil
+	}
 
 	h.mu.Lock()
 	room := NewRoom(id, convo.Name)
 	h.Rooms[id] = room
+	room.RoomSummary = convosummary.SummaryText
 	h.mu.Unlock()
 	go room.run()
 	return room
@@ -58,6 +64,7 @@ func (h *Hub) CreateRoom(ctx context.Context, name, convoType string) *Room {
 
 func (h *Hub) GetRooms(ctx context.Context, name string) ([]models.Convo, error) {
 	convoList, err := h.ConvoService.GetConvosFromDB(ctx, name)
+	
 	if err != nil {
 		return nil, fmt.Errorf("could not get convos from DB: %w", err)
 	}
@@ -118,18 +125,14 @@ func (h *Hub) DeleteClient(client *Client) {
 }
 
 func (h *Hub) GetClient(clientID string) (*Client, error) {
-	fmt.Println("GETCLIENT ERROR 1")
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	fmt.Println("GETCLIENT ERROR 2")
 	client, ok := h.Clients[clientID]
-	fmt.Println("GETCLIENT ERROR 3", client)
+
 	if !ok {
-		fmt.Println("GETCLIENT ERROR", client)
 		return nil, fmt.Errorf("client doesnt exist")
 	}
-	fmt.Println("GETCLIENT ERROR 4", client)
 	return client, nil
 }
 
@@ -196,4 +199,25 @@ func (h *Hub) LeaveRoom(client *Client, room *Room) (*Message, error) {
 	return message, nil
 }
 
-// func( )
+func(h *Hub) SendToAi(ctx context.Context, msg *models.Message) (*Message, error) {
+	DBMessages, err := h.MessageService.MessageToAi(ctx, msg)
+	if err != nil {
+		fmt.Println("couldnt send message to AI")
+		return nil, fmt.Errorf("couldnt send message to AI: %w", err)
+	}
+
+	fmt.Println(DBMessages)
+
+	wsMessage := Message{
+		Type: DBMessages.Type ,
+		Content: DBMessages.Content,
+		Username: "assistant", 
+		SenderType: DBMessages.SenderType,
+		RoomID: DBMessages.ConvoID,
+		UserID: DBMessages.UserID,
+	}
+	fmt.Println("OBSERVE HERE")
+	fmt.Println(wsMessage)
+	fmt.Println("OBSERVE HERE")
+	return &wsMessage, nil
+}

@@ -13,6 +13,7 @@ import (
 
 type ConversationSummaryServiceInterface interface {
 	Summerize(ctx context.Context, convoID int64, messageLimit int) (*models.ConvoSummary, error)
+	InitialSummary(ctx context.Context, convoID int64)(*models.ConvoSummary, error)
 }
 
 func NewConvoSummaryService(
@@ -21,14 +22,14 @@ func NewConvoSummaryService(
 	ai service.AiServiceInterface) ConversationSummaryServiceInterface {
 	return &ConversationSummaryService{
 		MessageRepo:     messageRepo,
-		ConoSummaryRepo: convoSummaryRepo,
+		ConvoSummaryRepo: convoSummaryRepo,
 		AI: ai,
 	}
 }
 
 type ConversationSummaryService struct {
 	MessageRepo     repository.MessageRepository
-	ConoSummaryRepo repository.ConvoSummaryRepository
+	ConvoSummaryRepo repository.ConvoSummaryRepository
 	AI  service.AiServiceInterface
 }
 
@@ -36,26 +37,29 @@ func (s *ConversationSummaryService) Summerize(ctx context.Context, convoID int6
 	convoIDstring := strconv.FormatInt(convoID, 10)
 	
 	
-	messages, err := s.MessageRepo.GetXMeesages(ctx, convoID, messageLimit)
+	messages, err := s.MessageRepo.GetXMessages(ctx, convoID, messageLimit)
 	if err != nil {
 		return nil, fmt.Errorf("could not get X messages")
 	}
 
 	lastMessageId := int(messages[0].ID)
 
-	convoSummary, err := s.ConoSummaryRepo.GetConvoSummaryByConvoID(ctx, convoID)
+	convoSummary, err := s.ConvoSummaryRepo.GetConvoSummaryByConvoID(ctx, convoID)
 	if err != nil {
 		return nil, err
 	}
+
+	lastMessageID := strconv.Itoa(lastMessageId)
+
 	//set some default summary about the chat 
 	if convoSummary == nil {
 		convoSummary = &models.ConvoSummary{
 		ConvoID:       convoIDstring,
 		SummaryText:   "",
-		LastMessageID: strconv.Itoa(lastMessageId),
+		LastMessageID: &lastMessageID,
 		}
 
-		convoSummary, err = s.ConoSummaryRepo.CreateConvoSummary(ctx, convoSummary)
+		convoSummary, err = s.ConvoSummaryRepo.CreateConvoSummary(ctx, convoSummary)
 		if err != nil {
 			return nil, fmt.Errorf("could not create summary: %w", err)
 		}
@@ -91,23 +95,39 @@ func (s *ConversationSummaryService) Summerize(ctx context.Context, convoID int6
 		return nil, fmt.Errorf("could not generate AI text: %w", err)
 	}
 
-
 	convoSummary = &models.ConvoSummary{
 		ConvoID: convoIDstring,
 		SummaryText: aiText,
-		LastMessageID: strconv.Itoa(lastMessageId),
+		LastMessageID: &lastMessageID,
 	}
 	
-	lastMessageID64, err := strconv.ParseInt(convoSummary.LastMessageID, 10, 64)
+	lastMessageID64, err := strconv.ParseInt(lastMessageID, 10, 64)
     
     if err != nil {
         fmt.Println("Error:", err)
         return nil, fmt.Errorf("could not convert lastMessageID to int64: %w", err)
     }
     
-	err = s.ConoSummaryRepo.UpdateConvoSummary(ctx, convoID, lastMessageID64, convoSummary.SummaryText)
+	err = s.ConvoSummaryRepo.UpdateConvoSummary(ctx, convoID, lastMessageID64, convoSummary.SummaryText)
 	if err != nil {
 		return nil, fmt.Errorf("could not update the summary: %w", err)
+	}
+
+	return convoSummary, nil
+}
+
+func (s *ConversationSummaryService) InitialSummary(ctx context.Context, convoID int64)(*models.ConvoSummary, error) {
+	convoIDstring := strconv.FormatInt(convoID, 10)
+
+	convoSummary := &models.ConvoSummary{
+		ConvoID:       convoIDstring,
+		SummaryText:   "This is fresh chat",
+		LastMessageID: nil,
+	}
+
+	convoSummary, err := s.ConvoSummaryRepo.CreateConvoSummary(ctx, convoSummary)
+		if err != nil {
+			return nil, fmt.Errorf("could not create summary: %w", err)
 	}
 
 	return convoSummary, nil

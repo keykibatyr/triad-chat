@@ -34,7 +34,7 @@ func (w *PersistWorker) SaveToDB(ctx context.Context) {
 						log.Printf("channel Jobs closed or there is no Job: %v and %v", ok, job)
 						return 
 					}
-					err := w.MessageService.SendMessage(ctx, job)
+					_, err := w.MessageService.SendMessage(ctx, job)
 					if err != nil {
 						log.Println("fail creating MEssage in DB")
 					}

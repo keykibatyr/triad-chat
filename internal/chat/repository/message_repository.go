@@ -16,7 +16,8 @@ type MessageRepository interface {
 	GetByUserID(ctx context.Context, userID int64) ([]models.Message, error)
 	GetMeesages(ctx context.Context, convoID int64, messageLimit int) ([]models.Message, int, error)
 	GetMessagesAndCursor(ctx context.Context, convoID int64, messageLimit, cursor int) ([]models.Message, int, error)
-	GetXMeesages(ctx context.Context, convoID int64, messageLimit int) ([]models.Message, error)
+	GetXMessages(ctx context.Context, convoID int64, messageLimit int) ([]models.Message, error)
+	CountUnsummerized(ctx context.Context, convoID int64, lastSummerizedMsg int) (*int, error)
 }
 
 type PostgresMessageRepository struct {
@@ -166,6 +167,8 @@ func (r *PostgresMessageRepository) GetMeesages(ctx context.Context, convoID int
 
 	}
 
+	defer rows.Close()
+
 	return messages, cursor, nil
 }
 
@@ -204,10 +207,12 @@ func (r *PostgresMessageRepository) GetMessagesAndCursor(ctx context.Context, co
 
 	}
 
+	defer rows.Close()
+
 	return messages, cursor, nil
 }
 
-func (r *PostgresMessageRepository) GetXMeesages(ctx context.Context, convoID int64, messageLimit int) ([]models.Message, error) {
+func (r *PostgresMessageRepository) GetXMessages(ctx context.Context, convoID int64, messageLimit int) ([]models.Message, error) {
 	var messages []models.Message
 
 	query := `SELECT id, conversation_id, sender_id, type, sender_type, content, created_at 
@@ -240,5 +245,23 @@ func (r *PostgresMessageRepository) GetXMeesages(ctx context.Context, convoID in
 
 	}
 
+	defer rows.Close()
+
 	return messages, nil
 }
+
+func (r *PostgresMessageRepository) CountUnsummerized(ctx context.Context, convoID int64, lastSummerizedMsg int) (*int, error) {
+	var msgCount int
+
+	query := `SELECT COUNT(*)
+		FROM messages
+		WHERE conversation_id = $1
+		AND id > last_summarized_message_id`
+
+	err := r.DB.QueryRowContext(ctx, query, convoID,lastSummerizedMsg).Scan(&msgCount)
+	if err != nil {
+		return nil, fmt.Errorf("fail retrieving msgCount: %w", err)
+	}
+
+	return &msgCount, nil
+}	

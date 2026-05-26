@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/keykibatyr/triad-chat/internal/chat/models"
-	// "github.com/keykibatyr/triad-chat/internal/utils"
+	 "github.com/keykibatyr/triad-chat/internal/utils"
 )
 
 const (
@@ -138,12 +138,7 @@ func (c *Client) readPump(ctx context.Context) {
 			if !ok {
 				continue
 			}
-
-			// if utils.ContainsAi(msg.Content) {
-			// 	c.Hub
-			// }
-
-
+			
 			messageDB := &models.Message{
 				Type:    msg.Type,
 				SenderType: msg.SenderType,
@@ -152,8 +147,23 @@ func (c *Client) readPump(ctx context.Context) {
 				UserID:  msg.UserID,
 			}
 
-			room.Broadcast <- &msg
 			c.Hub.Worker.Enqueue(messageDB)
+
+			room.Broadcast <- &msg
+			
+			if utils.ContainsAi(msg.Content) {
+				aiMsg, err := c.Hub.SendToAi(ctx, messageDB)
+				if err != nil {
+					fmt.Println("MESSAGE AI ERROR")
+					break
+				}
+
+				room.Broadcast <- aiMsg
+
+			}
+			
+			
+
 			log.Println("message sent to db 3")
 			
 		}

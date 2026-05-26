@@ -19,12 +19,7 @@ type Room struct {
 	Register   chan *Client
 	Unregister chan *Client
 	mu         sync.RWMutex
-}
-
-type RoomSummary struct {
-	ConvoID string `json:"convo_id"`
-	SummaryText string `json:"summary_text"`
-	LastMessageID string `json:"last_message_id"`
+	RoomSummary string
 }
 
 func NewRoom(id, name string) *Room {
